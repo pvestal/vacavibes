@@ -1,6 +1,6 @@
 import { createStore } from 'vuex';
 import { auth, googleProvider, signInWithPopup, db } from '../firebaseConfig';
-import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, query, where, getDoc, or } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, query, where, getDoc, or, Timestamp } from 'firebase/firestore';
 import router from '../router';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
@@ -8,48 +8,48 @@ export default createStore({
   state: {
     user: null,
     submissions: [],
-    recommendations: [],
-    userRatings: [],
+    // recommendations: [],
+    // userRatings: [],
     linkedUsers: []
   },
   mutations: {
-    setUser(state, user) {
+    SET_USER(state, user) {
       state.user = user;
     },
-    clearUser(state) {
+    CLEAR_USER(state) {
       state.user = null;
     },
-    setSubmissions(state, submissions) {
+    SET_SUBMISSIONS(state, submissions) {
       state.submissions = submissions;
     },
-    setRecommendations(state, recommendations) {
-      state.recommendations = recommendations.sort((a, b) => b.averageRating - a.averageRating);
-    },
-    setUserRatings(state, userRatings) {
-      state.userRatings = userRatings;
-    },
-    setLinkedUsers(state, linkedUsers) {
+    // setRecommendations(state, recommendations) {
+    //   state.recommendations = recommendations.sort((a, b) => b.averageRating - a.averageRating);
+    // },
+    // setUserRatings(state, userRatings) {
+    //   state.userRatings = userRatings;
+    // },
+    SET_LINKED_USERS(state, linkedUsers) {
       state.linkedUsers = linkedUsers;
     },
-    addLinkedUser(state, email) {
+    ADD_LINKED_USER(state, email) {
       state.linkedUsers.push(email);
     },
-    updateLinkedUser(state, { index, newEmail }) {
+    UPDATE_LINKED_USER(state, { index, newEmail }) {
       state.linkedUsers.splice(index, 1, newEmail);
     },
-    removeLinkedUser(state, index) {
+    REMOVE_LINKED_USER(state, index) {
       state.linkedUsers.splice(index, 1);
     },
-    addSubmission(state, submission) {
+    ADD_SUBMISSION(state, submission) {
       state.submissions.push(submission);
     },
-    updateSubmission(state, updatedSubmission) {
+    UPDATE_SUBMISSION(state, updatedSubmission) {
       const index = state.submissions.findIndex(submission => submission.id === updatedSubmission.id);
       if (index !== -1) {
         state.submissions.splice(index, 1, updatedSubmission);
       }
     },
-    removeSubmission(state, id) {
+    REMOVE_SUBMISSION(state, id) {
       state.submissions = state.submissions.filter(submission => submission.id !== id);
     }
   },
@@ -57,18 +57,20 @@ export default createStore({
     async login({ commit, dispatch }) {
       try {
         const result = await signInWithPopup(auth, googleProvider);
-        commit('setUser', result.user);
+        commit('SET_USER', result.user);
 
         const userDocRef = doc(db, 'users', result.user.uid);
         await setDoc(userDocRef, {
           uid: result.user.uid,
           displayName: result.user.displayName,
-          email: result.user.email
+          email: result.user.email,
+          photoURL: result.user.photoURL,
+          lastLogin: Timestamp.now(),
         }, { merge: true });
 
         await dispatch('fetchSubmissions');
-        await dispatch('fetchRecommendations');
-        await dispatch('fetchUserRatings');
+        // await dispatch('fetchRecommendations');
+        // await dispatch('fetchUserRatings');
         await dispatch('fetchLinkedUsers');
 
         router.push({ name: 'Home' });
@@ -80,7 +82,7 @@ export default createStore({
     async logout({ commit }) {
       try {
         await auth.signOut();
-        commit('clearUser');
+        commit('CLEAR_USER');
         router.push({ name: 'Login' });
       } catch (error) {
         console.error('Error logging out:', error);
@@ -90,14 +92,16 @@ export default createStore({
       return new Promise((resolve, reject) => {
         auth.onAuthStateChanged(async (user) => {
           if (user) {
-            commit('setUser', user);
+            console.log('User logged in:', user);
+            commit('SET_USER', user);
             await dispatch('fetchSubmissions');
-            await dispatch('fetchRecommendations');
-            await dispatch('fetchUserRatings');
+            // await dispatch('fetchRecommendations');
+            // await dispatch('fetchUserRatings');
             await dispatch('fetchLinkedUsers');
             resolve(user);
           } else {
-            commit('clearUser');
+            console.log('No user logged in');
+            commit('CLEAR_USER');
             resolve(null);
           }
         }, reject);
@@ -118,51 +122,51 @@ export default createStore({
           querySnapshot.forEach(doc => {
             submissions.push({ id: doc.id, ...doc.data() });
           });
-          commit('setSubmissions', submissions);
+          commit('SET_SUBMISSIONS', submissions);
         }
       } catch (error) {
         console.error('Error fetching submissions:', error);
       }
     },
-    async fetchRecommendations({ commit }) {
-      try {
-        if (auth.currentUser) {
-          const q = query(collection(db, 'recommendations'), where('userId', '==', auth.currentUser.uid));
-          const querySnapshot = await getDocs(q);
-          const recommendations = [];
-          querySnapshot.forEach(doc => {
-            const data = doc.data();
-            const averageRating = (data.submitterRating + data.raterRating) / 2;
-            recommendations.push({ id: doc.id, ...data, averageRating });
-          });
-          commit('setRecommendations', recommendations);
-        }
-      } catch (error) {
-        console.error('Error fetching recommendations:', error);
-      }
-    },
-    async fetchUserRatings({ commit }) {
-      try {
-        if (auth.currentUser) {
-          const q = query(collection(db, 'ratings'), where('ratedBy', '==', auth.currentUser.uid));
-          const querySnapshot = await getDocs(q);
-          const userRatings = [];
-          querySnapshot.forEach(doc => {
-            userRatings.push({ id: doc.id, ...doc.data() });
-          });
-          commit('setUserRatings', userRatings);
-        }
-      } catch (error) {
-        console.error('Error fetching user ratings:', error);
-      }
-    },
+    // async fetchRecommendations({ commit }) {
+    //   try {
+    //     if (auth.currentUser) {
+    //       const q = query(collection(db, 'recommendations'), where('userId', '==', auth.currentUser.uid));
+    //       const querySnapshot = await getDocs(q);
+    //       const recommendations = [];
+    //       querySnapshot.forEach(doc => {
+    //         const data = doc.data();
+    //         const averageRating = (data.submitterRating + data.raterRating) / 2;
+    //         recommendations.push({ id: doc.id, ...data, averageRating });
+    //       });
+    //       commit('setRecommendations', recommendations);
+    //     }
+    //   } catch (error) {
+    //     console.error('Error fetching recommendations:', error);
+    //   }
+    // },
+    // async fetchUserRatings({ commit }) {
+    //   try {
+    //     if (auth.currentUser) {
+    //       const q = query(collection(db, 'ratings'), where('ratedBy', '==', auth.currentUser.uid));
+    //       const querySnapshot = await getDocs(q);
+    //       const userRatings = [];
+    //       querySnapshot.forEach(doc => {
+    //         userRatings.push({ id: doc.id, ...doc.data() });
+    //       });
+    //       commit('setUserRatings', userRatings);
+    //     }
+    //   } catch (error) {
+    //     console.error('Error fetching user ratings:', error);
+    //   }
+    // },
     async fetchLinkedUsers({ commit }) {
       try {
         if (auth.currentUser) {
           const userDocRef = doc(db, 'users', auth.currentUser.uid);
           const userSnapshot = await getDoc(userDocRef);
           const userData = userSnapshot.exists() ? userSnapshot.data() : {};
-          commit('setLinkedUsers', userData.linkedUsers || []);
+          commit('SET', userData.linkedUsers || []);
         }
       } catch (error) {
         console.error('Error fetching linked users:', error);

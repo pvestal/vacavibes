@@ -2,7 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import store from './store';
-import './firebaseConfig';
+import '../src/firebaseConfig';
 
 store.dispatch('fetchUser').then(() => {
   createApp(App)
