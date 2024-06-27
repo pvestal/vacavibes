@@ -278,7 +278,7 @@ export default {
                 }
             } catch (error) {
                 console.error("Failed to submit:", error);
-                alert("Submission failed. Please try again.");
+                this.$store.dispatch('showError', 'An error occurred: ' + error.message);
             }
         },
         resetForms() {
@@ -325,6 +325,7 @@ export default {
             .catch(error => {
                 // Handle errors, such as displaying a notification or logging to the console
                 console.error("Error fetching linked users:", error);
+                this.$store.dispatch('showError', 'An error occurred: ' + error.message);
             });
     },
 

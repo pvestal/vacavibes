@@ -16,14 +16,13 @@ import {
   arrayRemove,
 } from "firebase/firestore";
 import router from "../router";
-// import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export default createStore({
   state: {
     user: null,
+    errorMessage: '',
+    errorVisible: false,
     submissions: [],
-    // recommendations: [],
-    // userRatings: [],
     linkedUsers: [],
   },
   mutations: {
@@ -33,15 +32,17 @@ export default createStore({
     CLEAR_USER(state) {
       state.user = null;
     },
+    SET_ERROR(state, message) {
+      state.errorMessage = message;
+      state.errorVisible = true;
+    },
+    CLEAR_ERROR(state) {
+      state.errorMessage = '';
+      state.errorVisible = false;
+    },
     SET_SUBMISSIONS(state, submissions) {
       state.submissions = submissions;
     },
-    // setRecommendations(state, recommendations) {
-    //   state.recommendations = recommendations.sort((a, b) => b.averageRating - a.averageRating);
-    // },
-    // setUserRatings(state, userRatings) {
-    //   state.userRatings = userRatings;
-    // },
     SET_LINKED_USERS(state, linkedUsers) {
       state.linkedUsers = linkedUsers;
     },
@@ -72,6 +73,15 @@ export default createStore({
     },
   },
   actions: {
+    showError({ commit }, message) {
+      commit('SET_ERROR', message);
+      setTimeout(() => {
+        commit('CLEAR_ERROR');
+      }, 3000); // Hide the error message after 3 seconds
+    },
+    clearError({ commit }) {
+      commit('CLEAR_ERROR');
+    },
     async login({ commit }) {
       try {
         const result = await signInWithPopup(auth, googleProvider); // Sign in with Google popup.
@@ -97,6 +107,8 @@ export default createStore({
         router.push({ name: "Home" });
       } catch (error) {
         console.error("Error logging in:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+
       }
     },    
     async logout({ commit }) {
@@ -106,6 +118,7 @@ export default createStore({
         router.push({ name: "Login" });
       } catch (error) {
         console.error("Error logging out:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
       }
     },
     fetchUser({ commit }) {
@@ -183,6 +196,7 @@ export default createStore({
         // Example logic to fetch data could be added here
       } catch (error) {
         console.error("Error fetching submissions with user details:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
       }
     },
     async fetchLinkedUsers({ state, commit }) {
@@ -198,6 +212,7 @@ export default createStore({
         }
       } catch (error) {
         console.error("Failed to fetch linked users:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
         throw error; // Ensure errors are propagated
       }
     },
@@ -242,6 +257,7 @@ export default createStore({
         commit("ADD_LINKED_USER", linkedUser);
       } catch (error) {
         console.error("Error linking user:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
       }
     },
     async deleteLinkedUser({ commit }, { userId, linkedUserId }) {
@@ -279,6 +295,7 @@ export default createStore({
   
       const newSubmission = {
           ...submissionData,
+          status: "pending",
           createdAt: Timestamp.now(),
           lastupdated: Timestamp.now(),
       };
@@ -289,6 +306,7 @@ export default createStore({
           return docRef.id;
       } catch (error) {
           console.error("Error adding submission:", error);
+          this.$store.dispatch('showError', 'An error occurred: ' + error.message);
           throw error;
       }
   },
@@ -301,6 +319,7 @@ export default createStore({
         }
       } catch (error) {
         console.error("Error updating submission:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
       }
     },
     async deleteSubmission({ commit }, id) {
@@ -312,6 +331,7 @@ export default createStore({
         }
       } catch (error) {
         console.error("Error deleting submission:", error);
+        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
       }
     },
   },

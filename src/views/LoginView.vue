@@ -8,12 +8,14 @@
 <script>
 import { mapActions } from 'vuex';
 
+
 export default {
   methods: {
     ...mapActions(['login']),
     handleLogin() {
       this.login().catch(error => {
         console.error('Login failed:', error);
+        this.$refs.errorMessageBoard.showError('An error occurred: ' + error.message);
       });
     }
   }

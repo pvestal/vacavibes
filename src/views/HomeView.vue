@@ -69,6 +69,7 @@ export default {
           await this.linkUser(this.email);
         } catch (error) {
           console.error('Error linking user:', error);
+          this.$refs.errorMessageBoard.showError('An error occurred: ' + error.message);
         }
       }
     },
