@@ -66,7 +66,7 @@ export default {
     async submitLinkUser() {
       if (this.email) {
         try {
-          await this.linkUserAction(this.email);
+          await this.linkUser(this.email);
         } catch (error) {
           console.error('Error linking user:', error);
         }
