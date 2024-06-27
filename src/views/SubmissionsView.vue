@@ -2,7 +2,7 @@
     <div>
         <h3 v-if="user">{{ user.displayName }} Submissions</h3>
 
-        <p v-for="(sub) in submissions" :key="sub.id">Id:{{ sub.id }}-{{sub.locationName}}-{{ sub.status }}-{{ formattedDate(sub.lastModified) }}</p>
+        <p v-for="(sub) in submissions" :key="sub.id">{{ sub.id }}-{{sub.locationName}}-{{ sub.status }}-{{ formattedDate(sub.lastModified) }}-{{ sub.submittedBy }}</p>
         <!-- Collapsible Filter Section -->
         <div class="filter-section">
             <button @click="toggleFilters" class="toggle-button" :aria-expanded="filtersVisible.toString()"
@@ -119,20 +119,18 @@
         </div>
         <div v-for="submission in filteredAndSortedSubmissions" :key="submission.id" class="submission-card">
             <p><strong>Id: </strong> {{ submission.id }}</p>
-            <p><strong>Location Name: </strong> {{ submission.locationName }}</p>
+            <p><strong>Location Name: </strong> {{ submission.locationName }} <strong>Country Preference: </strong> {{ submission.countryPreference }}</p>
             <p><strong>Status: </strong> {{ submission.status }}</p>
-            <p><strong>Country Preference: </strong> {{ submission.countryPreference }}</p>
             <p><strong>Rater Scored: </strong>{{ submission.rating.raterScore }} |
                 <strong>Submitter Scored: </strong>{{ submission.rating.submitterScore }}
             </p>
             <div class="score-badge" :style="scoreStyle(submission)">
                 Score: {{ submission.rating.score }}
             </div>
-            <p><strong>Submitted By:</strong> {{ submission.submittedBy.displayName }} </p>
-            <p><strong>Last Modified:</strong> {{ formattedDate(submission.lastModified) }}</p>
+            <p><strong>Submitted By:</strong> {{ submission.submittedBy.displayName }} - <strong>Last Modified:</strong> {{ formattedDate(submission.lastModified) }}</p>
             <router-link :to="{ name: 'EditSubmission', params: { id: submission.id } }"
                 class="edit-link">Edit</router-link>
-            <button v-if="submission.submittedBy.uid === user.uid" @click="confirmDelete(submission.id, user.uid)"
+            <button v-if="submission.submittedBy.uid !== null && submission.submittedBy.uid === user.uid" @click="confirmDelete(submission.id, user.uid)"
                 class="delete-button">Delete</button>
         </div>
     </div>
@@ -148,23 +146,23 @@ export default {
         return {
             showForm: false,
             newSubmission: {
-                locationName: '',
-                countryPreference: '',
-                travelingWithKids: false,
                 activityPreference: '',
-                interestFocus: '',
                 budgetLevel: '',
-                travelStyle: '',
-                tripDuration: '',
+                countryPreference: '',
+                interestFocus: '',
+                locationName: '',
+                ratedBy: { uid: null, displayName: "dummy" },
+                rating: { submitterScore: 0, raterScore: 0, score: 0 },
                 seasonPreference: '',
                 specialConsiderations: '',
-                rating: { submitterScore: 0, raterScore: 0, score: 0 },
+                status: 'pending',
                 submittedBy: { uid: null, displayName: "dummy" },
-                ratedBy: { uid: null, displayName: "dummy" },
+                travelStyle: '',
+                travelingWithKids: false,
+                tripDuration: '',
             },
             countries: countries,
             filtersVisible: false,
-            // activeFiltersCount: 0,
             filters: {
                 filterStatus: '',
                 filterTripDuration: '',
@@ -231,8 +229,8 @@ export default {
         },
         scoreStyle(submission) {
             let color = '#4285F4'; // default blue
-            if (submission.rating.score >= 4) color = 'green';
-            else if (submission.rating.score <= 2) color = 'red';
+            if (submission.rating.score >= 3.5) color = 'green';
+            else if (submission.rating.score <= 3) color = 'red';
             return { backgroundColor: color, color: 'white', padding: '5px 10px', borderRadius: '5px' };
         },
         formattedDate(timestamp) {
@@ -297,7 +295,6 @@ export default {
             return displayName;
         },
         async confirmDelete(submissionId, uid) {
-            console.log("uid :", uid)
             const submission = this.submissions.find(sub => sub.id === submissionId);
             if (!submission) {
                 alert("Submission not found.");

@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import router from "../router";
 
+
 export default createStore({
   state: {
     user: null,
@@ -110,7 +111,7 @@ export default createStore({
         console.error("Error logging in:", error);
         this.$store.dispatch(
           "showError",
-          "An error occurred: " + error.message
+          "An error occurred from login: " + error.message
         );
       }
     },
@@ -123,11 +124,11 @@ export default createStore({
         console.error("Error logging out:", error);
         this.$store.dispatch(
           "showError",
-          "An error occurred: " + error.message
+          "An error occurred fro, logout: " + error.message
         );
       }
     },
-    fetchUser({ commit,  }) {
+    fetchUser({ commit }) {
       return new Promise((resolve, reject) => {
         auth.onAuthStateChanged(async (user) => {
           if (user) {
@@ -233,20 +234,22 @@ export default createStore({
     //     );
     //   }
     // },
+
     async fetchSubmissions({ commit }) {
       const collectionRef = collection(db, "submissions");
       try {
-          const querySnapshot = await getDocs(collectionRef);
-          const documents = querySnapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-          }));
-          console.log(documents);
-          commit("SET_SUBMISSIONS", documents);
+        const querySnapshot = await getDocs(collectionRef);
+        const documents = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        console.log(documents);
+        commit("SET_SUBMISSIONS", documents);
       } catch (error) {
-          console.error("Error getting documents:", error);
+        console.error("Error getting documents:", error.message);
+        this.$store.dispatch('showError', 'An error occurred fetching submissions: ' + error.message);
       }
-  },
+    },
     async fetchLinkedUsers({ state, commit }) {
       if (!state.user) return Promise.resolve([]); // Return an empty array if there is no user logged in
       try {
@@ -262,7 +265,7 @@ export default createStore({
         console.error("Failed to fetch linked users:", error);
         this.$store.dispatch(
           "showError",
-          "An error occurred: " + error.message
+          "An error occurred fetching linked Users: " + error.message
         );
         throw error; // Ensure errors are propagated
       }
@@ -310,7 +313,7 @@ export default createStore({
         console.error("Error linking user:", error);
         this.$store.dispatch(
           "showError",
-          "An error occurred: " + error.message
+          "An error occurred for linkUser: " + error.message
         );
       }
     },
@@ -324,6 +327,9 @@ export default createStore({
         commit("REMOVE_LINKED_USER", linkedUserId);
       } catch (error) {
         console.error("Error deleting linked user:", error);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message);
       }
     },
     async editLinkedUser({ commit }, { index, newEmail }) {
@@ -354,7 +360,6 @@ export default createStore({
 
       const newSubmission = {
         ...submissionData,
-        status: "pending",
         createdAt: Timestamp.now(),
         lastupdated: Timestamp.now(),
       };

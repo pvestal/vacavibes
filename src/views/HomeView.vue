@@ -32,7 +32,9 @@
         <ul class="linked-users-list">
           <li v-for="(linkedUser, index) in linkedUsers" :key="index" class="linked-user-item">
             <button @click="editUser(index)" class="edit-button">Edit</button>
-            <span class="linked-user-email">{{ linkedUser }}</span>
+            <p><strong>Name: </strong>{{ linkedUser.displayName }} | <strong>Email: </strong>{{ linkedUser.email }}</p>
+            <p>Last Login: {{ formattedDate(linkedUser.lastLogin) }}</p>
+            <img :src="linkedUser.photoURL" alt="Profile Photo" v-if="linkedUser.photoURL" />
             <button @click="deleteUser(index)" class="delete-button">Delete</button>
           </li>
         </ul>
@@ -70,7 +72,7 @@ export default {
           await this.linkUser(this.email);
         } catch (error) {
           console.error('Error linking user:', error);
-          this.$refs.errorMessageBoard.showError('An error occurred: ' + error.message);
+          this.$store.dispatch('showError', 'Error linking user: ' + error.message);
         }
       }
     },
@@ -88,9 +90,9 @@ export default {
     }
   },
   created() {
-    // if (this.user) {
-    //   this.fetchSubmissions();
-    // }
+    if (this.user) {
+      this.fetchSubmissions();
+    }
   }
 };
 </script>
