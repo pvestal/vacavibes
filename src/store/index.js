@@ -84,6 +84,15 @@ export default createStore({
     clearError({ commit }) {
       commit("CLEAR_ERROR");
     },
+    calculateAverage(submitterScore, raterScore) {
+      submitterScore = submitterScore || 0;
+      raterScore = raterScore || 0;
+      // Only average the scores if both are provided
+      if (submitterScore > 0 && raterScore > 0) {
+        return (submitterScore + raterScore) / 2;
+      }
+      return submitterScore > 0 ? submitterScore : raterScore;
+    },
     async login({ commit }) {
       try {
         const result = await signInWithPopup(auth, googleProvider); // Sign in with Google popup.
@@ -348,9 +357,11 @@ export default createStore({
         console.error("Error editing linked user:", error);
       }
     },
-    async addSubmission({ commit }, submissionData) {
+    async addSubmission({ commit, dispatch }, submissionData) {
+      // First, fetch linked users to ensure the 'visibleTo' field is populated correctly
+      await dispatch('fetchLinkedUsers');
       if (
-        !submissionData.submittedBy ||
+        !submissionData.submittedBy.uid ||
         !submissionData.rating.submitterScore
       ) {
         throw new Error(
@@ -358,8 +369,13 @@ export default createStore({
         );
       }
 
+      // Now, access the state to get the linked users
+      const linkedUsers = this.state.linkedUsers;
+      const visibleTo = linkedUsers.map(user => user);
+
       const newSubmission = {
         ...submissionData,
+        visibleTo: visibleTo,
         createdAt: Timestamp.now(),
         lastupdated: Timestamp.now(),
       };
@@ -380,19 +396,48 @@ export default createStore({
         throw error;
       }
     },
-    async updateSubmission({ commit }, updatedSubmission) {
+    async updateSubmission({ commit, dispatch }, updatedSubmission) {
       try {
-        if (auth.currentUser) {
-          const submissionDocRef = doc(db, "submissions", updatedSubmission.id);
-          await updateDoc(submissionDocRef, updatedSubmission);
-          commit("updateSubmission", updatedSubmission);
+        if (!auth.currentUser) {
+          throw new Error("No authenticated user available");
         }
+    
+        const submissionDocRef = doc(db, "submissions", updatedSubmission.id);
+    
+        // Determine if the currentUser is the one who submitted the submission
+        if (auth.currentUser.uid === updatedSubmission.submittedBy.uid) {
+          // Current user is the submitter, update submitterScore
+          await updateDoc(submissionDocRef, {
+            ...updatedSubmission,
+            "rating.submitterScore": updatedSubmission.rating.submitterScore,
+            lastModified: Timestamp.now(),
+          });
+        } else {
+          // Current user is not the submitter, assign as ratedBy and update raterScore
+          await updateDoc(submissionDocRef, {
+            "ratedBy": updatedSubmission.ratedBy,
+            "rating.raterScore": updatedSubmission.rating.raterScore,
+            lastModified: Timestamp.now(),
+            status: 'reviewed',
+          });
+        }
+    
+        // Fetch the updated document to calculate the average
+        const updatedDoc = await getDoc(submissionDocRef);
+        const data = updatedDoc.data();
+        const averageScore = await dispatch('calculateAverage', data.rating.submitterScore, data.rating.raterScore); 
+        //async tasks calculateAverage(data.rating.submitterScore, data.rating.raterScore);
+    
+        // Optionally update the document with the average score
+        await updateDoc(submissionDocRef, {
+          "rating.averageScore": averageScore,
+        });
+    
+        // Commit the updated data to the Vuex store
+        commit("UPDATE_SUBMISSION", { ...data, id: updatedDoc.id });
+    
       } catch (error) {
-        console.error("Error updating submission:", error);
-        this.$store.dispatch(
-          "showError",
-          "An error occurred: " + error.message
-        );
+        console.error("Error editing submission:", error);
       }
     },
     async deleteSubmission({ commit }, id) {

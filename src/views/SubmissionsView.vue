@@ -1,8 +1,17 @@
 <template>
     <div>
-        <h3 v-if="user">{{ user.displayName }} Submissions</h3>
-
-        <p v-for="(sub) in submissions" :key="sub.id">{{ sub.id }}-{{sub.locationName}}-{{ sub.status }}-{{ formattedDate(sub.lastModified) }}-{{ sub.submittedBy }}</p>
+        <h3 v-if="user">{{ user.displayName }} - Submissions</h3>
+        <div v-if="linkedUsers.length">
+            <h4>Linked Users</h4>
+            <ul>
+                <li v-for="(linkedUser, index) in linkedUsers" :key="index">
+                    <p><strong>Name: </strong>{{ linkedUser.displayName }} | <strong>Email: </strong>{{ linkedUser.email }} | Last Login: {{ formattedDate(linkedUser.lastLogin) }}</p>
+                </li>
+            </ul>
+        </div>
+        <p v-for="(vis, index) in submissions" :key="index">Linked User(s): {{ index }}-{{ vis.visibleTo.email }}</p>
+        <p v-for="(sub) in submissions" :key="sub.id">{{ sub.id }}-{{ sub.locationName }}-{{ sub.status }}-{{
+            formattedDate(sub.lastModified) }}-{{ sub.submittedBy }}-{{ sub.rating }}</p>
         <!-- Collapsible Filter Section -->
         <div class="filter-section">
             <button @click="toggleFilters" class="toggle-button" :aria-expanded="filtersVisible.toString()"
@@ -100,6 +109,22 @@
                     <option value="budget">Budget</option>
                     <option value="moderate">Moderate</option>
                 </select><br />
+
+                <label for="tripDuration">Trip Duration:</label>
+                <select v-model="newSubmission.tripDuration" id="tripDuration">
+                    <option value="short">Short</option>
+                    <option value="medium">Medium</option>
+                    <option value="long">Long</option>
+                </select><br /><br />
+
+                <label for="seasonPreference">Season Preference:</label>
+                <select v-model="newSubmission.seasonPreference" id="seasonPreference">
+                    <option value="spring">Spring</option>
+                    <option value="summer">Summer</option>
+                    <option value="autumn">Autumn</option>
+                    <option value="winter">Winter</option>
+                </select><br /><br />
+
                 <label for="specialConsiderations">Special Considerations:</label>
                 <textarea v-model="newSubmission.specialConsiderations" id="specialConsiderations"></textarea><br />
 
@@ -119,7 +144,8 @@
         </div>
         <div v-for="submission in filteredAndSortedSubmissions" :key="submission.id" class="submission-card">
             <p><strong>Id: </strong> {{ submission.id }}</p>
-            <p><strong>Location Name: </strong> {{ submission.locationName }} <strong>Country Preference: </strong> {{ submission.countryPreference }}</p>
+            <p><strong>Location Name: </strong> {{ submission.locationName }} <strong>Country Preference: </strong> {{
+                submission.countryPreference }}</p>
             <p><strong>Status: </strong> {{ submission.status }}</p>
             <p><strong>Rater Scored: </strong>{{ submission.rating.raterScore }} |
                 <strong>Submitter Scored: </strong>{{ submission.rating.submitterScore }}
@@ -127,11 +153,12 @@
             <div class="score-badge" :style="scoreStyle(submission)">
                 Score: {{ submission.rating.score }}
             </div>
-            <p><strong>Submitted By:</strong> {{ submission.submittedBy.displayName }} - <strong>Last Modified:</strong> {{ formattedDate(submission.lastModified) }}</p>
+            <p><strong>Submitted By:</strong> {{ submission.submittedBy.displayName }} - <strong>Last Modified:</strong> {{
+                formattedDate(submission.lastModified) }}</p>
             <router-link :to="{ name: 'EditSubmission', params: { id: submission.id } }"
                 class="edit-link">Edit</router-link>
-            <button v-if="submission.submittedBy.uid !== null && submission.submittedBy.uid === user.uid" @click="confirmDelete(submission.id, user.uid)"
-                class="delete-button">Delete</button>
+            <button v-if="submission.submittedBy.uid !== null && submission.submittedBy.uid === user.uid"
+                @click="confirmDelete(submission.id, user.uid)" class="delete-button">Delete</button>
         </div>
     </div>
 </template>
@@ -220,7 +247,7 @@ export default {
         },
     },
     methods: {
-        ...mapActions(['submissions', 'fetchSubmissions', 'addSubmission', 'deleteSubmission','fetchLinkedUsers']),
+        ...mapActions(['submissions', 'fetchSubmissions', 'addSubmission', 'deleteSubmission', 'fetchLinkedUsers']),
         getNestedProperty(object, path) {
             return path.split('.').reduce((obj, key) => obj && obj[key], object);
         },
@@ -260,13 +287,18 @@ export default {
                 console.log("didn't find linkedUserIds available")
                 return false;
             }
+            console.log("checking for active user before submitting", this.linkedUserIds)
+            if (!this.user) {
+                console.log("didn't find user available")
+                return false;
+            }
             // Add additional checks if there are more fields
             return true;
         },
         async handleSubmission() {
             if (!this.validateSubmission()) return;
             try {
-
+                this.newSubmission.submittedBy = { uid: this.user.uid, displayName: this.user.displayName };
                 const submissionId = await this.$store.dispatch('addSubmission', this.newSubmission);
                 if (submissionId) {
                     const userIds = await this.$store.dispatch('fetchLinkedUsers');

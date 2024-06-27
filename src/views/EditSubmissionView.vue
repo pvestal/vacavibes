@@ -61,7 +61,17 @@
 
         <label for="specialConsiderations">Special Considerations:</label>
         <textarea v-model="submission.specialConsiderations" id="specialConsiderations"></textarea><br /><br />
+        <br />
+        <div class="rating-container">
+                    <label for="raterRating">Rater Score:</label>
+                    <input type="number" v-model.number="submission.rating.raterScore" min="1" max="5" 
+                        :readonly="submission.submittedBy.uid !== this.user.uid" id="raterRating" />
 
+                    <label for="submitterScore">Submitter Score:</label>
+                    <input type="number" v-model.number="submission.rating.submitterScore" min="1" max="5" 
+                        :readonly="submission.submittedBy.uid === this.user.uid" id="submitterScore" /> 
+                    <br />
+                </div>
         <div class="button-container">
           <input type="submit" value="Save" />
           <button @click="cancelEdit">Cancel</button>
@@ -86,7 +96,7 @@ export default {
     };
   },
   computed: {
-    ...mapState(['submissions'])
+    ...mapState(['submissions', 'user'])
   },
   methods: {
     ...mapActions(['fetchSubmissions', 'updateSubmission']),
