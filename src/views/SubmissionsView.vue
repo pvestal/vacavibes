@@ -137,7 +137,7 @@
 </template>
   
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapGetters } from 'vuex';
 import countries from '../assets/countries.json'
 import { format } from 'date-fns';
 
@@ -176,11 +176,8 @@ export default {
         };
     },
     computed: {
-        ...mapState('user', {
-            user: state => state.user,
-            linkedUsers: state => state.linkedUsers
-        }),
-        ...mapState('submissions', ['submissions']),
+        ...mapState(['user', 'submissions', 'linkedUsers']),
+        ...mapGetters(['userDisplayName', 'linkedUserIds']),
         filteredAndSortedSubmissions() {
             console.log("Current Filters: ", this.filters);  // Debugging filter values
             let result = this.submissions.filter(submission => {
@@ -223,7 +220,7 @@ export default {
         },
     },
     methods: {
-        ...mapActions('submissions', ['fetchSubmissions', 'addSubmission', 'deleteSubmission']),
+        ...mapActions(['submissions', 'fetchSubmissions', 'addSubmission', 'deleteSubmission','fetchLinkedUsers']),
         getNestedProperty(object, path) {
             return path.split('.').reduce((obj, key) => obj && obj[key], object);
         },
@@ -248,31 +245,34 @@ export default {
         },
         validateSubmission() {
             // Check each part of the path to ensure it exists before accessing deeper properties
+            console.log("location: ", this.newSubmission.locationName)
             if (!this.newSubmission.locationName) {
                 alert("Please fill out the location name.");
                 return false;
             }
-            console.log("rating: ", this.newSubmission.rating.submitterScore)
+            console.log("submitter rating: ", this.newSubmission.rating.submitterScore)
             if (!this.newSubmission.rating.submitterScore) {
                 alert("Please fill out your the rating.");
                 return false;
             }
-            // console.log("checking for linkedUsers before submitting", this.linkedUserIds)
-            // if (!this.linkedUserIds) {
-            //     console.log("didn't find linkedUserIds available")
-            //     return false;
-            // }
+            console.log("checking for linkedUsers before submitting", this.linkedUserIds)
+            if (!this.linkedUserIds) {
+                console.log("didn't find linkedUserIds available")
+                return false;
+            }
             // Add additional checks if there are more fields
             return true;
         },
         async handleSubmission() {
             if (!this.validateSubmission()) return;
             try {
-                const submissionId = await this.$store.dispatch('submissions/addSubmission', this.newSubmission);
+
+                const submissionId = await this.$store.dispatch('addSubmission', this.newSubmission);
                 if (submissionId) {
-                    const userIds = await this.$store.dispatch('user/fetchLinkedUsers');
+                    const userIds = await this.$store.dispatch('fetchLinkedUsers');
+                    console.log("userIds: ", userIds)
                     this.resetForms();
-                    this.fetchSubmissions(userIds); // Assuming fetchSubmissions requires userIds
+                    this.fetchSubmissions(); // Assuming fetchSubmissions requires userIds
                 } else {
                     throw new Error('Failed to retrieve submission ID');
                 }
@@ -306,8 +306,8 @@ export default {
                 return;
             }
             if (confirm("Are you sure you want to delete this submission?")) {
-                await this.$store.dispatch('submissions/deleteSubmission', { id: submissionId, userId: uid });
-                const userIds = await this.$store.dispatch('user/fetchLinkedUsers');
+                await this.$store.dispatch('deleteSubmission', { id: submissionId, userId: uid });
+                const userIds = await this.$store.dispatch('fetchLinkedUsers');
                 this.fetchSubmissions(userIds); // Assuming fetchSubmissions requires userIds
                 this.resetForms();
             }
@@ -318,9 +318,9 @@ export default {
     },
     created() {
         // Dispatch the fetchLinkedUsers action from the user module
-        this.$store.dispatch('user/fetchLinkedUsers')
+        this.fetchLinkedUsers()
             .then(() => {
-                this.$store.dispatch('submissions/fetchSubmissions');
+                this.fetchSubmissions()
             })
             .catch(error => {
                 // Handle errors, such as displaying a notification or logging to the console

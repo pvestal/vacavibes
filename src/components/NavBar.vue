@@ -4,8 +4,6 @@
       <li><router-link to="/">Home</router-link></li>
       <li v-if="!user"><router-link to="/login">Login</router-link></li>
       <li v-if="user"><router-link to="/submissions">Submissions</router-link></li>
-      <li v-if="user"><router-link to="/recommendations">Recommendations</router-link></li>
-      <li v-if="user"><router-link to="/pending-ratings">Pending Ratings</router-link></li>
       <li v-if="user"><button @click="logout">Logout</button></li>
     </ul>
   </nav>

@@ -3,22 +3,19 @@
     <h1>Home</h1>
     <div v-if="user">
       <p>Welcome, {{ user.displayName }}!</p>
-      <button @click="logout">Logout</button>
-
-      <div v-if="pendingRatings.length">
-        <h2>Pending Ratings from Other Users</h2>
-        <p>You have {{ pendingRatings.length }} <router-link to="/pending-ratings">pending ratings</router-link>.</p>
-      </div>
+      <img :src="user.photoURL" alt="Profile Photo" v-if="user.photoURL" />
       <div v-else>
-        <p>No pending ratings from other users.</p>
+        <p>No profile photo available</p>
       </div>
+      <br>
+      <p>Your email is: {{ user.email }}</p>
+      <p>Your user ID is: {{ user.uid }}</p>
+      <p>Last Login: {{ formattedDate(user.lastLogin) }}</p>
+      <br/>
+      <button @click="logout">Logout</button>
 
       <div>
         <p>You have {{ submissions.length }} <router-link to="/submissions">submissions</router-link>.</p>
-      </div>
-
-      <div v-if="recommendations.length">
-        <p>You have {{ recommendations.length }} <router-link to="/recommendations">recommendations</router-link>.</p>
       </div>
 
       <div>
@@ -46,7 +43,7 @@
 
 <script>
 import { mapState, mapActions } from 'vuex';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { format } from 'date-fns';
 
 export default {
   data() {
@@ -55,43 +52,24 @@ export default {
     };
   },
   computed: {
-    ...mapState(['user', 'submissions', 'recommendations', 'userRatings', 'linkedUsers']),
-    pendingRatings() {
-      return this.userRatings.filter(rating => rating.status === 'pending');
-    }
+    ...mapState(['user', 'submissions', 'linkedUsers']),
   },
   methods: {
-    ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'fetchRecommendations', 'editLinkedUser', 'deleteLinkedUser']),
-    
+    ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'editLinkedUser', 'deleteLinkedUser']),
+    formattedDate(timestamp) {
+      if (!timestamp || !timestamp.seconds) {
+        return 'N/A';
+      }
+      // Use format function directly here
+      return format(new Date(timestamp.seconds * 1000), "PPpp");
+    },
     async submitLinkUser() {
       if (this.email) {
         try {
           await this.linkUserAction(this.email);
-          const functions = getFunctions();
-          const sendRatingEmail = httpsCallable(functions, 'sendRatingEmail');
-          const sendConfirmationEmail = httpsCallable(functions, 'sendConfirmationEmail');
-          const result = await sendRatingEmail({ email: this.email, submissionId: 'your-submission-id' });
-          
-          if (result.data.success) {
-            await sendConfirmationEmail({ linkedUserEmail: this.email, userEmail: this.user.email, displayName: this.user.displayName });
-            this.email = '';
-            alert('Emails sent successfully!');
-          } else {
-            console.error('Error sending email:', result.data.error);
-            alert('Failed to send email.');
-          }
         } catch (error) {
-          console.error('Error sending email:', error);
-          alert('Failed to send email.');
+          console.error('Error linking user:', error);
         }
-      }
-    },
-
-    async linkUserAction(email) {
-      try {
-        await this.linkUser(email);
-      } catch (error) {
-        console.error('Error linking user:', error);
       }
     },
 
@@ -101,7 +79,6 @@ export default {
         this.editLinkedUser({ index, newEmail });
       }
     },
-
     deleteUser(index) {
       if (confirm("Are you sure you want to delete this user?")) {
         this.deleteLinkedUser(index);
@@ -111,7 +88,6 @@ export default {
   created() {
     if (this.user) {
       this.fetchSubmissions();
-      this.fetchRecommendations();
     }
   }
 };

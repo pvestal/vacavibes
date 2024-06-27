@@ -3,8 +3,6 @@ import HomeView from '../views/HomeView.vue';
 import LoginView from '../views/LoginView.vue';
 import SubmissionsView from '../views/SubmissionsView.vue';
 import EditSubmissionView from '../views/EditSubmissionView.vue';
-import RecommendationsView from '../views/RecommendationsView.vue';
-import PendingRatingsView from '../views/PendingRatingsView.vue';
 import store from '@/store';
 
 const routes = [
@@ -31,18 +29,6 @@ const routes = [
     component: EditSubmissionView,
     meta: { requiresAuth: true }
   },
-  {
-    path: '/recommendations',
-    name: 'Recommendations',
-    component: RecommendationsView,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/pending-ratings',
-    name: 'PendingRatings',
-    component: PendingRatingsView,
-    meta: { requiresAuth: true }
-  }
 ];
 
 const router = createRouter({
