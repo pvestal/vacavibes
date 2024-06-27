@@ -15,7 +15,7 @@
       <button @click="logout">Logout</button>
 
       <div>
-        <p>You have {{ submissions.length }} <router-link to="/submissions">submissions</router-link>.</p>
+        <p>There are {{ submissionsCount }} <router-link to="/submissions">submissions</router-link>.</p>
       </div>
 
       <div>
@@ -42,7 +42,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapGetters } from 'vuex';
 import { format } from 'date-fns';
 
 export default {
@@ -53,6 +53,7 @@ export default {
   },
   computed: {
     ...mapState(['user', 'submissions', 'linkedUsers']),
+    ...mapGetters(['submissionsCount'])
   },
   methods: {
     ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'editLinkedUser', 'deleteLinkedUser']),
@@ -87,9 +88,9 @@ export default {
     }
   },
   created() {
-    if (this.user) {
-      this.fetchSubmissions();
-    }
+    // if (this.user) {
+    //   this.fetchSubmissions();
+    // }
   }
 };
 </script>

@@ -1,7 +1,8 @@
 <template>
     <div>
         <h3 v-if="user">{{ user.displayName }} Submissions</h3>
-        <!-- <h2>User Obj: {{ user }}</h2> -->
+
+        <p v-for="(sub) in submissions" :key="sub.id">Id:{{ sub.id }}-{{sub.locationName}}-{{ sub.status }}-{{ formattedDate(sub.lastModified) }}</p>
         <!-- Collapsible Filter Section -->
         <div class="filter-section">
             <button @click="toggleFilters" class="toggle-button" :aria-expanded="filtersVisible.toString()"
@@ -120,6 +121,7 @@
             <p><strong>Id: </strong> {{ submission.id }}</p>
             <p><strong>Location Name: </strong> {{ submission.locationName }}</p>
             <p><strong>Status: </strong> {{ submission.status }}</p>
+            <p><strong>Country Preference: </strong> {{ submission.countryPreference }}</p>
             <p><strong>Rater Scored: </strong>{{ submission.rating.raterScore }} |
                 <strong>Submitter Scored: </strong>{{ submission.rating.submitterScore }}
             </p>
@@ -317,7 +319,6 @@ export default {
         }
     },
     created() {
-        // Dispatch the fetchLinkedUsers action from the user module
         this.fetchLinkedUsers()
             .then(() => {
                 this.fetchSubmissions()

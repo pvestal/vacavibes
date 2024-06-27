@@ -20,7 +20,7 @@ import router from "../router";
 export default createStore({
   state: {
     user: null,
-    errorMessage: '',
+    errorMessage: "",
     errorVisible: false,
     submissions: [],
     linkedUsers: [],
@@ -37,7 +37,7 @@ export default createStore({
       state.errorVisible = true;
     },
     CLEAR_ERROR(state) {
-      state.errorMessage = '';
+      state.errorMessage = "";
       state.errorVisible = false;
     },
     SET_SUBMISSIONS(state, submissions) {
@@ -74,19 +74,20 @@ export default createStore({
   },
   actions: {
     showError({ commit }, message) {
-      commit('SET_ERROR', message);
+      console.error("Error:", message);
+      commit("SET_ERROR", message);
       setTimeout(() => {
-        commit('CLEAR_ERROR');
+        commit("CLEAR_ERROR");
       }, 3000); // Hide the error message after 3 seconds
     },
     clearError({ commit }) {
-      commit('CLEAR_ERROR');
+      commit("CLEAR_ERROR");
     },
     async login({ commit }) {
       try {
         const result = await signInWithPopup(auth, googleProvider); // Sign in with Google popup.
-        const userRef = doc(db, "users", result.user.uid);  // Reference to the user document.
-    
+        const userRef = doc(db, "users", result.user.uid); // Reference to the user document.
+
         // Check if user exists and perform necessary actions
         const userDoc = await getDoc(userRef);
         const userData = {
@@ -96,21 +97,23 @@ export default createStore({
           photoURL: result.user.photoURL || "default-url",
           lastLogin: Timestamp.now(),
         };
-    
+
         if (!userDoc.exists()) {
           // User does not exist, set additional creation data
           userData.createdAt = Timestamp.now();
         }
-    
-        await setDoc(userRef, userData, { merge: true });  // Merges data with existing or creates new if not present.
+
+        await setDoc(userRef, userData, { merge: true }); // Merges data with existing or creates new if not present.
         commit("SET_USER", userData);
         router.push({ name: "Home" });
       } catch (error) {
         console.error("Error logging in:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
-
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
       }
-    },    
+    },
     async logout({ commit }) {
       try {
         await auth.signOut();
@@ -118,10 +121,13 @@ export default createStore({
         router.push({ name: "Login" });
       } catch (error) {
         console.error("Error logging out:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
       }
     },
-    fetchUser({ commit }) {
+    fetchUser({ commit,  }) {
       return new Promise((resolve, reject) => {
         auth.onAuthStateChanged(async (user) => {
           if (user) {
@@ -177,28 +183,70 @@ export default createStore({
     //     console.error("Error fetching submissions:", error);
     //   }
     // },
-    async fetchSubmissions({ state, }) {
+    // async fetchSubmissions({ state, commit }) {
+    //   console.log("Fetching submissions with user details");
+    //   try {
+    //     //Ensure there is a user object and it has the necessary properties
+    //     // if (!state.user || !state.user.linkedUsers) {
+    //     //   console.error("User data is not available or improperly structured");
+    //     //   return;
+    //     // }
+
+    //     // Extract the current user's ID and linked user IDs from the user module's state
+    //     const currentUserID = state.user.uid; // Adjust if your state structure is different
+    //     console.log("Current User ID: ", currentUserID);
+
+    //     const linkedUserIDs = state.linkedUsers.map((user) => user.uid); // Assumes linkedUsers is an array of user objects
+    //     console.log("Linked User IDs: ", linkedUserIDs);
+
+    //     // Combine both current user ID and linked user IDs for querying
+    //     let userIds = [currentUserID, ...linkedUserIDs];
+
+    //     console.log("userIds: ", userIds);
+    //     // Limiting the array to a manageable number for Firestore queries
+    //     if (userIds.length > 10) {
+    //       console.error(
+    //         "Too many user IDs for a single 'in' query. Consider splitting the query."
+    //       );
+    //       return; // Optionally split the query or handle this case differently
+    //     }
+
+    //     const submissionsQuery = query(
+    //       collection(db, "submissions"),
+    //       where("submittedBy", "in", userIds)
+    //     );
+    //     console.log("submissionsQuery: ", submissionsQuery);
+    //     // Execute the query
+    //     const querySnapshot = await getDocs(submissionsQuery);
+    //     const submissions = querySnapshot.docs.map((doc) => ({
+    //       id: doc.id,
+    //       ...doc.data(),
+    //     }));
+    //     console.log("submissions: ", submissions);
+    //     // Committing the fetched data to the Vuex store
+    //     commit("SET_SUBMISSIONS", submissions);
+    //   } catch (error) {
+    //     console.error("Error fetching submissions with user details:", error);
+    //     this.$store.dispatch(
+    //       "showError",
+    //       "An error occurred: " + error.message
+    //     );
+    //   }
+    // },
+    async fetchSubmissions({ commit }) {
+      const collectionRef = collection(db, "submissions");
       try {
-        // Ensure there is a user object and it has the necessary properties
-        // if (!state.user || !state.user.linkedUsers) {
-        //   console.error("User data is not available or improperly structured");
-        //   return;
-        // }
-    
-        // Extract the current user's ID and linked user IDs from the user module's state
-        const currentUserID = state.user.uid; // Adjust if your state structure is different
-        console.log("Current User ID: ", currentUserID);
-    
-        const linkedUserIDs = state.linkedUsers.map(user => user.uid); // Assumes linkedUsers is an array of user objects
-        console.log("Linked User IDs: ", linkedUserIDs);
-    
-        // Now you can use these IDs to fetch submissions or any other related data
-        // Example logic to fetch data could be added here
+          const querySnapshot = await getDocs(collectionRef);
+          const documents = querySnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+          }));
+          console.log(documents);
+          commit("SET_SUBMISSIONS", documents);
       } catch (error) {
-        console.error("Error fetching submissions with user details:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+          console.error("Error getting documents:", error);
       }
-    },
+  },
     async fetchLinkedUsers({ state, commit }) {
       if (!state.user) return Promise.resolve([]); // Return an empty array if there is no user logged in
       try {
@@ -212,7 +260,10 @@ export default createStore({
         }
       } catch (error) {
         console.error("Failed to fetch linked users:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
         throw error; // Ensure errors are propagated
       }
     },
@@ -257,7 +308,10 @@ export default createStore({
         commit("ADD_LINKED_USER", linkedUser);
       } catch (error) {
         console.error("Error linking user:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
       }
     },
     async deleteLinkedUser({ commit }, { userId, linkedUserId }) {
@@ -289,27 +343,38 @@ export default createStore({
       }
     },
     async addSubmission({ commit }, submissionData) {
-      if (!submissionData.submittedBy || !submissionData.rating.submitterScore) {
-          throw new Error("No authenticated user found or fields are incomplete.");
+      if (
+        !submissionData.submittedBy ||
+        !submissionData.rating.submitterScore
+      ) {
+        throw new Error(
+          "No authenticated user found or fields are incomplete."
+        );
       }
-  
+
       const newSubmission = {
-          ...submissionData,
-          status: "pending",
-          createdAt: Timestamp.now(),
-          lastupdated: Timestamp.now(),
+        ...submissionData,
+        status: "pending",
+        createdAt: Timestamp.now(),
+        lastupdated: Timestamp.now(),
       };
-  
+
       try {
-        const docRef = await addDoc(collection(db, "submissions"), newSubmission);
-          commit("ADD_SUBMISSION", { id: docRef.id, ...newSubmission });
-          return docRef.id;
+        const docRef = await addDoc(
+          collection(db, "submissions"),
+          newSubmission
+        );
+        commit("ADD_SUBMISSION", { id: docRef.id, ...newSubmission });
+        return docRef.id;
       } catch (error) {
-          console.error("Error adding submission:", error);
-          this.$store.dispatch('showError', 'An error occurred: ' + error.message);
-          throw error;
+        console.error("Error adding submission:", error);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
+        throw error;
       }
-  },
+    },
     async updateSubmission({ commit }, updatedSubmission) {
       try {
         if (auth.currentUser) {
@@ -319,7 +384,10 @@ export default createStore({
         }
       } catch (error) {
         console.error("Error updating submission:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
       }
     },
     async deleteSubmission({ commit }, id) {
@@ -331,7 +399,10 @@ export default createStore({
         }
       } catch (error) {
         console.error("Error deleting submission:", error);
-        this.$store.dispatch('showError', 'An error occurred: ' + error.message);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
       }
     },
   },
@@ -347,6 +418,9 @@ export default createStore({
     },
     userDisplayName(state) {
       return state.user ? state.user.displayName : "";
+    },
+    submissionsCount(state) {
+      return state.submissions.length;
     },
   },
 });
