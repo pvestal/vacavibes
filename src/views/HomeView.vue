@@ -11,21 +11,39 @@
       <p>Your email is: {{ user.email }}</p>
       <p>Your user ID is: {{ user.uid }}</p>
       <p>Last Login: {{ formattedDate(user.lastLogin) }}</p>
-      <br/>
+      <br />
       <button @click="logout">Logout</button>
 
       <div>
         <p>There are {{ submissionsCount }} <router-link to="/submissions">submissions</router-link>.</p>
       </div>
 
-      <div>
+      <h2>Link a User for Ratings</h2>
+      <form @submit.prevent="sendRequest">
+        <label for="email">User Email:</label>
+        <input type="email" v-model="email" id="email" placeholder="Enter email" />
+        <button type="submit">Link User</button>
+      </form>
+
+      <!-- <div>
+        <input v-model="this.email" placeholder="Enter user email">
+        <button @click="sendRequest">Send Link Request</button>
+      </div> -->
+
+      <div v-for="request in linkRequests" :key="request.uid">
+        <p>{{ request.displayName }}</p>
+        <button @click="approveRequest(request)">Approve</button>
+        <button @click="denyRequest(request)">Deny</button>
+      </div>
+
+      <!-- <div>
         <h2>Link a User for Ratings</h2>
-        <form @submit.prevent="submitLinkUser">
+        <form  >
           <label for="email">User Email:</label>
           <input type="email" v-model="email" id="email" placeholder="Enter email" />
           <button type="submit">Link User</button>
         </form>
-      </div>
+      </div> -->
 
       <div v-if="linkedUsers.length">
         <h2>Linked Users</h2>
@@ -55,10 +73,13 @@ export default {
   },
   computed: {
     ...mapState(['user', 'submissions', 'linkedUsers']),
-    ...mapGetters(['submissionsCount'])
+    ...mapGetters(['submissionsCount']),
+    linkRequests() {
+      return this.$store.state.user.linkRequests;
+    },
   },
   methods: {
-    ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'editLinkedUser', 'deleteLinkedUser']),
+    ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'editLinkedUser', 'deleteLinkedUser', 'sendLinkRequest', 'approveLinkRequest', 'denyLinkRequest', 'findUserByEmail']),
     formattedDate(timestamp) {
       if (!timestamp || !timestamp.seconds) {
         return 'N/A';
@@ -66,16 +87,27 @@ export default {
       // Use format function directly here
       return format(new Date(timestamp.seconds * 1000), "PPpp");
     },
-    async submitLinkUser() {
-      if (this.email) {
-        try {
-          await this.linkUser(this.email);
-        } catch (error) {
-          console.error('Error linking user:', error);
-          this.$store.dispatch('showError', 'Error linking user: ' + error.message);
-        }
-      }
+    async sendRequest() {
+      const { uid, displayName } = await this.$store.dispatch('findUserByEmail', this.email); 
+      console.log('uid:', uid, 'displayName:', displayName);
+      this.$store.dispatch('sendLinkRequest', { uid, displayName });
     },
+    approveRequest(request) {
+      this.$store.dispatch('approveLinkRequest', request);
+    },
+    denyRequest(request) {
+      this.$store.dispatch('denyLinkRequest', request);
+    },
+    // async submitLinkUser() {
+    //   if (this.email) {
+    //     try {
+    //       await this.linkUser(this.email);
+    //     } catch (error) {
+    //       console.error('Error linking user:', error);
+    //       this.$store.dispatch('showError', 'Error linking user: ' + error.message);
+    //     }
+    //   }
+    // },
 
     editUser(index) {
       const newEmail = prompt("Edit user email:", this.linkedUsers[index]);

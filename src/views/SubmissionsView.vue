@@ -206,7 +206,7 @@ export default {
         ...mapState(['user', 'submissions', 'linkedUsers']),
         ...mapGetters(['userDisplayName', 'linkedUserIds']),
         filteredAndSortedSubmissions() {
-            console.log("Current Filters: ", this.filters);  // Debugging filter values
+            //console.log("Current Filters: ", this.filters);  // Debugging filter values
             let result = this.submissions.filter(submission => {
                 return Object.keys(this.filters).every(filterKey => {
                     const filterValue = this.filters[filterKey];

@@ -17,7 +17,6 @@ import {
 } from "firebase/firestore";
 import router from "../router";
 
-
 export default createStore({
   state: {
     user: null,
@@ -43,6 +42,21 @@ export default createStore({
     },
     SET_SUBMISSIONS(state, submissions) {
       state.submissions = submissions;
+    },
+    ADD_LINK_REQUEST(state, request) {
+      state.user.linkRequests.push(request);
+    },
+    REMOVE_LINK_REQUEST(state, uid) {
+      state.user.linkRequests = state.user.linkRequests.filter(
+        (req) => req.uid !== uid
+      );
+    },
+    ADD_SENT_LINK_REQUEST(state, request) {
+      state.user.sentLinkRequests.push(request);
+    },
+    UPDATE_LINK_REQUEST_STATUS(state, { uid, status }) {
+      let request = state.user.linkRequests.find((req) => req.uid === uid);
+      if (request) request.status = status;
     },
     SET_LINKED_USERS(state, linkedUsers) {
       state.linkedUsers = linkedUsers;
@@ -92,6 +106,75 @@ export default createStore({
         return (submitterScore + raterScore) / 2;
       }
       return submitterScore > 0 ? submitterScore : raterScore;
+    },
+    async sendLinkRequest({ commit, state }, { uid, displayName }) {
+      if (!state.user) throw new Error("No authenticated user found.");
+
+      const newRequest = {
+        uid,
+        displayName,
+        status: "pending",
+      };
+
+      // Update Firestore to include this new link request in both the sender and receiver's documents
+      const senderRef = doc(db, "users", state.user.uid);
+      const receiverRef = doc(db, "users", uid);
+
+      try {
+        await updateDoc(senderRef, {
+          sentLinkRequests: arrayUnion(newRequest),
+        });
+        await updateDoc(receiverRef, {
+          linkRequests: arrayUnion({
+            ...newRequest,
+            uid: state.user.uid,
+            displayName: state.user.displayName,
+          }),
+        });
+        commit("ADD_SENT_LINK_REQUEST", newRequest);
+      } catch (error) {
+        console.error("Error sending link request:", error);
+        throw error;
+      }
+    },
+    async findUserByEmail(email) {
+      try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", email));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0]; // Assuming one match for the email
+          return {
+            uid: userDoc.id,
+            displayName: userDoc.data().displayName,
+          };
+        } else {
+          throw new Error("No user found with the provided email");
+        }
+      } catch (error) {
+        console.error("Error finding user by email:", error);
+        throw new Error("Failed to find user by email: " + error.message);
+      }
+    },
+    async approveLinkRequest({ commit, state }, { uid, displayName }) {
+      // Update the status in Firestore and local state
+      const userDocRef = doc(db, "users", state.user.uid);
+      await updateDoc(userDocRef, {
+        linkedUsers: arrayUnion({ uid, displayName }),
+        linkRequests: arrayRemove({ uid, displayName, status: "pending" }),
+      });
+      commit("UPDATE_LINK_REQUEST_STATUS", { uid, status: "approved" });
+      commit("ADD_LINKED_USER", { uid, displayName });
+      commit("REMOVE_LINK_REQUEST", uid);
+    },
+
+    async denyLinkRequest({ commit, state }, { uid }) {
+      // Remove the request from Firestore and local state
+      const userDocRef = doc(db, "users", state.user.uid);
+      await updateDoc(userDocRef, {
+        linkRequests: arrayRemove({ uid }),
+      });
+      commit("REMOVE_LINK_REQUEST", uid);
     },
     async login({ commit }) {
       try {
@@ -256,7 +339,10 @@ export default createStore({
         commit("SET_SUBMISSIONS", documents);
       } catch (error) {
         console.error("Error getting documents:", error.message);
-        this.$store.dispatch('showError', 'An error occurred fetching submissions: ' + error.message);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred fetching submissions: " + error.message
+        );
       }
     },
     async fetchLinkedUsers({ state, commit }) {
@@ -338,7 +424,8 @@ export default createStore({
         console.error("Error deleting linked user:", error);
         this.$store.dispatch(
           "showError",
-          "An error occurred: " + error.message);
+          "An error occurred: " + error.message
+        );
       }
     },
     async editLinkedUser({ commit }, { index, newEmail }) {
@@ -359,7 +446,7 @@ export default createStore({
     },
     async addSubmission({ commit, dispatch }, submissionData) {
       // First, fetch linked users to ensure the 'visibleTo' field is populated correctly
-      await dispatch('fetchLinkedUsers');
+      await dispatch("fetchLinkedUsers");
       if (
         !submissionData.submittedBy.uid ||
         !submissionData.rating.submitterScore
@@ -371,7 +458,7 @@ export default createStore({
 
       // Now, access the state to get the linked users
       const linkedUsers = this.state.linkedUsers;
-      const visibleTo = linkedUsers.map(user => user);
+      const visibleTo = linkedUsers.map((user) => user);
 
       const newSubmission = {
         ...submissionData,
@@ -401,9 +488,9 @@ export default createStore({
         if (!auth.currentUser) {
           throw new Error("No authenticated user available");
         }
-    
+
         const submissionDocRef = doc(db, "submissions", updatedSubmission.id);
-    
+
         // Determine if the currentUser is the one who submitted the submission
         if (auth.currentUser.uid === updatedSubmission.submittedBy.uid) {
           // Current user is the submitter, update submitterScore
@@ -415,27 +502,30 @@ export default createStore({
         } else {
           // Current user is not the submitter, assign as ratedBy and update raterScore
           await updateDoc(submissionDocRef, {
-            "ratedBy": updatedSubmission.ratedBy,
+            ratedBy: updatedSubmission.ratedBy,
             "rating.raterScore": updatedSubmission.rating.raterScore,
             lastModified: Timestamp.now(),
-            status: 'reviewed',
+            status: "reviewed",
           });
         }
-    
+
         // Fetch the updated document to calculate the average
         const updatedDoc = await getDoc(submissionDocRef);
         const data = updatedDoc.data();
-        const averageScore = await dispatch('calculateAverage', data.rating.submitterScore, data.rating.raterScore); 
+        const averageScore = await dispatch(
+          "calculateAverage",
+          data.rating.submitterScore,
+          data.rating.raterScore
+        );
         //async tasks calculateAverage(data.rating.submitterScore, data.rating.raterScore);
-    
+
         // Optionally update the document with the average score
         await updateDoc(submissionDocRef, {
           "rating.averageScore": averageScore,
         });
-    
+
         // Commit the updated data to the Vuex store
         commit("UPDATE_SUBMISSION", { ...data, id: updatedDoc.id });
-    
       } catch (error) {
         console.error("Error editing submission:", error);
       }
