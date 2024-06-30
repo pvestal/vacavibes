@@ -2,7 +2,8 @@
   <div>
     <h1>Home</h1>
     <div v-if="user">
-      <p>Welcome, {{ user.displayName }}!</p>
+      {{ linkedUsers }}
+      <p>Welcome, {{ safeDisplayName(user.displayName) }}!</p>
       <img :src="user.photoURL" alt="Profile Photo" v-if="user.photoURL" />
       <div v-else>
         <p>No profile photo available</p>
@@ -15,11 +16,11 @@
       <button @click="logout">Logout</button>
 
       <div>
-        <p>There are {{ submissionsCount }} <router-link to="/submissions">submissions</router-link>.</p>
+        <p>There are {{ submissions.length }} <router-link to="/submissions">submissions</router-link>.</p>
       </div>
 
       <h2>Link a User for Ratings</h2>
-      <form @submit.prevent="sendRequest">
+      <form @submit.prevent="sendLinkRequest">
         <label for="email">User Email:</label>
         <input type="email" v-model="email" id="email" placeholder="Enter email" />
         <button type="submit">Link User</button>
@@ -29,12 +30,44 @@
         <input v-model="this.email" placeholder="Enter user email">
         <button @click="sendRequest">Send Link Request</button>
       </div> -->
+      <!-- <h2>Link Requests</h2> -->
+      <h3>Incoming Requests</h3>
+      <!-- Display Received Link Requests -->
+      <section>
 
-      <div v-for="request in linkRequests" :key="request.uid">
-        <p>{{ request.displayName }}</p>
-        <button @click="approveRequest(request)">Approve</button>
-        <button @click="denyRequest(request)">Deny</button>
-      </div>
+        
+        <div v-if="linkedUsers">
+          <p>There are {{ linkedUsers.length }} incoming link requests</p>
+        <div v-if="Array.isArray(linkedUsers) && linkedUsers.length">
+
+          <div v-for="(request, index) in linkedUsers" :key="index">
+            <ol>
+              <li><button @click="approveRequest(request.uid)">Approve</button>
+                <!-- Check if request has displayName and email before rendering them -->
+                Name: {{ safeDisplayName(request) }} - Email: ({{ safeEmail(request) }})
+                <button @click="denyRequest(request.uid)" class="delete-button">Deny</button>
+              </li>
+            </ol>
+          </div>
+        </div>
+        </div>
+        <div v-else>
+          <p>No incoming link requests</p>
+        </div>
+      </section>
+
+      <!-- Display Sent Link Requests -->
+      <!-- <section>
+        <h3>Sent Requests</h3>
+        <div v-if="sentRequests">
+          <div v-for="request in sentRequests" :key="request.uid">
+            <p>{{ safeDisplayName(request.displayName) }} ({{ safeEmail(request.email) }}) - {{ request.status }}</p>
+          </div>
+        </div>
+        <div v-else>
+          <p>No sent link requests</p>
+        </div>
+      </section> -->
 
       <!-- <div>
         <h2>Link a User for Ratings</h2>
@@ -45,12 +78,13 @@
         </form>
       </div> -->
 
-      <div v-if="linkedUsers.length">
+      <div v-if="linkedUsers">
         <h2>Linked Users</h2>
         <ul class="linked-users-list">
           <li v-for="(linkedUser, index) in linkedUsers" :key="index" class="linked-user-item">
             <button @click="editUser(index)" class="edit-button">Edit</button>
-            <p><strong>Name: </strong>{{ linkedUser.displayName }} | <strong>Email: </strong>{{ linkedUser.email }}</p>
+            <p><strong>Name: </strong>{{ safeDisplayName(linkedUser) }} | <strong>Email: </strong>{{ safeEmail(linkedUser)
+            }}</p>
             <p>Last Login: {{ formattedDate(linkedUser.lastLogin) }}</p>
             <img :src="linkedUser.photoURL" alt="Profile Photo" v-if="linkedUser.photoURL" />
             <button @click="deleteUser(index)" class="delete-button">Delete</button>
@@ -68,35 +102,66 @@ import { format } from 'date-fns';
 export default {
   data() {
     return {
-      email: ''
+      email: '',
     };
   },
   computed: {
-    ...mapState(['user', 'submissions', 'linkedUsers']),
-    ...mapGetters(['submissionsCount']),
-    linkRequests() {
-      return this.$store.state.user.linkRequests;
+    ...mapState(['user', 'submissions']),
+    ...mapGetters(['myPendingLinkedUsers', 'linkedUsers']),
+    myPendingLinkedUsers() {
+      return this.myPendingLinkedUsers;
     },
   },
   methods: {
-    ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'editLinkedUser', 'deleteLinkedUser', 'sendLinkRequest', 'approveLinkRequest', 'denyLinkRequest', 'findUserByEmail']),
-    formattedDate(timestamp) {
-      if (!timestamp || !timestamp.seconds) {
-        return 'N/A';
+    ...mapActions(['logout', 'linkUser', 'fetchSubmissions', 'editLinkedUser', 'deleteLinkedUser', 'sendLinkRequest', 'approveLinkRequest', 'denyLinkRequest']),
+    approveRequest(uid) {
+      console.log('Approving request for:', uid);
+      this.$store.dispatch('approveLinkRequest', uid);
+    },
+    denyRequest(uid) {
+      // Implementation to deny request
+      this.$store.dispatch('disapproveLinkRequest', uid);
+    },
+    safeDisplayName(request) {
+      // Safely return displayName or a default value if undefined
+      return request ? request.displayName || 'Default Name' : 'No Request';
+    },
+    // safeDisplayName(request) {
+    //   return request?.displayName || 'displayName-request';
+    // },
+    safeEmail(request) {
+      return request?.email || 'email-request';
+    },
+    // formattedDate(timestamp) {
+    //   if (!timestamp || !timestamp.seconds) {
+    //     return 'N/A';
+    //   }
+    //   // Use format function directly here
+    //   return format(new Date(timestamp.seconds * 1000), "PPpp");
+    // },
+    formattedDate(date) {
+      if (!date) {
+        return 'No date available'; // Return a default message or handle as needed
       }
-      // Use format function directly here
-      return format(new Date(timestamp.seconds * 1000), "PPpp");
+      return format(new Date(date.seconds * 1000), 'PPpp');
     },
-    async sendRequest() {
-      const { uid, displayName } = await this.$store.dispatch('findUserByEmail', this.email); 
-      console.log('uid:', uid, 'displayName:', displayName);
-      this.$store.dispatch('sendLinkRequest', { uid, displayName });
-    },
-    approveRequest(request) {
-      this.$store.dispatch('approveLinkRequest', request);
-    },
-    denyRequest(request) {
-      this.$store.dispatch('denyLinkRequest', request);
+    async sendLinkRequest() {
+      try {
+        if (!this.email) {
+          this.$store.dispatch('showError', 'Email is required');
+          throw new Error('Email is required');
+        }
+        if (this.email === this.user.email) {
+          this.$store.dispatch('showError', 'You cannot link yourself');
+          throw new Error('You cannot link yourself');
+        }
+        // This now only dispatches the action to find the user and lets Vuex handle the rest
+        await this.$store.dispatch('findUserByEmail', this.email);
+        this.email = '';  // Clear the email field
+      } catch (error) {
+        console.error("Failed to process request:", error);
+        this.$store.dispatch('showError', 'Failed to process request: ' + error.message);
+      }
     },
     // async submitLinkUser() {
     //   if (this.email) {
@@ -121,11 +186,15 @@ export default {
       }
     }
   },
-  created() {
-    if (this.user) {
-      this.fetchSubmissions();
-    }
-  }
+  // created() {
+  //   if (this.user) {
+  //     this.fetchSubmissions();
+  //     this.$store.dispatch('fetchLinkedUsers');
+  //   }
+  // },
+  mounted() {
+      this.$store.dispatch('fetchLinkedUsers');
+  },
 };
 </script>
 

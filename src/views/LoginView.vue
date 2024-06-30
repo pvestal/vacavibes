@@ -15,7 +15,7 @@ export default {
     handleLogin() {
       this.login().catch(error => {
         console.error('Login failed:', error);
-        this.$refs.errorMessageBoard.showError('An error occurred: ' + error.message);
+        this.dispatch('showError', 'Login failed. Please try again.');
       });
     }
   }
