@@ -120,29 +120,32 @@ export default createStore({
       return submitterScore > 0 ? submitterScore : raterScore;
     },
     async findUserByEmail({ dispatch }, email) {
-      const usersRef = collection(db, "users");
-      const querySnapshot = await getDocs(
-        query(usersRef, where("email", "==", email))
-      );
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0]; // Assume there is one match for the email
-        console.log("User found sending to sendLinkRequest ->:", userDoc.data());
-        dispatch("sendLinkRequest", {
-          uid: userDoc.id,
-          displayName: userDoc.data().displayName,
-          email: userDoc.data().email,
-          lastLogin: userDoc.data().lastLogin,
-        });
-      } else {
-        dispatch("showError", "No user found with the provided email");
-        throw new Error("No user found with the provided email");
+      try {
+        const usersRef = collection(db, "users");
+        const querySnapshot = await getDocs(
+          query(usersRef, where("email", "==", email))
+        );
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0]; // Assume there is one match for the email
+          console.log("User found sending to sendLinkRequest ->:")
+            dispatch("sendLinkRequest", {
+              uid: userDoc.id,
+              displayName: userDoc.data().displayName,
+              email: userDoc.data().email,
+              lastLogin: userDoc.data().lastLogin,
+            });
+          }
+        
+      } catch (error) {
+        console.error("Error finding user by email:", error);
+        dispatch("showError", error.message);
+        throw error;
       }
     },
     async sendLinkRequest(
       { commit, state, dispatch },
-      { uid, displayName, email, lastLogin, }
+      { uid, displayName, email, lastLogin }
     ) {
-      console.log("Sending link request email-uid-displayName" + email + uid + displayName + lastLogin );
       if (!state.user) throw new Error("No authenticated user found.");
 
       const newRequest = {
@@ -187,47 +190,56 @@ export default createStore({
         if (!state.user || !state.user.uid) {
           throw new Error("No authenticated user found.");
         }
-        
+
         const userDocRef = doc(db, "users", state.user.uid);
         const userDoc = await getDoc(userDocRef);
-        
+
         if (!userDoc.exists()) {
           throw new Error("User document does not exist.");
         }
-    
+
         const userData = userDoc.data();
         if (!userData.linkedUsers) {
           throw new Error("No linked users array in user document.");
         }
-    
-        const linkedUserIndex = userData.linkedUsers.findIndex(u => u.uid === linkedUserId);
+
+        const linkedUserIndex = userData.linkedUsers.findIndex(
+          (u) => u.uid === linkedUserId
+        );
         if (linkedUserIndex === -1) {
           throw new Error("Linked user not found.");
         }
-        
+
         const linkedUser = userData.linkedUsers[linkedUserIndex];
         // Ensure all required data is present
-        if (!linkedUser || !linkedUser.uid || !linkedUser.displayName || !linkedUser.email) {
+        if (
+          !linkedUser ||
+          !linkedUser.uid ||
+          !linkedUser.displayName ||
+          !linkedUser.email
+        ) {
           throw new Error("Linked user data is incomplete.");
         }
-    
+
         // Proceed with updating the linked user's status
-        userData.linkedUsers[linkedUserIndex].status = 'approved';
-    
+        userData.linkedUsers[linkedUserIndex].status = "approved";
+
         // Update the document in Firestore
         await updateDoc(userDocRef, {
-          linkedUsers: userData.linkedUsers  // Directly setting the whole array since Firestore doesn't support nested array item updates
+          linkedUsers: userData.linkedUsers, // Directly setting the whole array since Firestore doesn't support nested array item updates
         });
-    
+
         // Update Vuex state
-        commit('UPDATE_LINK_REQUEST_STATUS', { index: linkedUserIndex, status: "approved" });
-    
+        commit("UPDATE_LINK_REQUEST_STATUS", {
+          index: linkedUserIndex,
+          status: "approved",
+        });
       } catch (error) {
         console.error("Error approving linked user:", error);
         this.$store.dispatch("showError", error.message);
       }
-    },    
-    // async approveLinkRequest({ commit, state }, {linkedUserId}) {
+    },
+    // async approveLinkRequest({ commit, state }, linkedUserId) {
     //   try {
     //     // Query the users collection to find a user by linkedUserId
     //     const usersQuery = query(collection(db, "users"), where((linkedUserId) => linkedUserId === linkedUser.uid));
@@ -383,6 +395,7 @@ export default createStore({
           displayName: userToUnlinkDoc.data().displayName || "Unknown",
           photoURL: userToUnlinkDoc.data().photoURL || "photo-url",
           lastLogin: userToUnlinkDoc.data().lastLogin,
+          status: "denied",
         };
 
         // Check if the user is already linked
@@ -398,19 +411,16 @@ export default createStore({
         });
 
         // Remove from Vuex state
+
         commit("REMOVE_LINKED_USER", linkedUser.uid);
 
-        // Update the status of the request in Firestore and Vuex
-      //   await updateDoc(
-      //     doc(db, "users", state.user.uid, "linkedUsers", requestId),
-      //     {
-      //       status: "denied",
-      //     }
-      //   );
-      //   commit("UPDATE_LINK_REQUEST_STATUS", {
-      //     requestId,
-      //     newStatus: "denied",
-      //   });
+        //Update the status of the request in Firestore and Vuex
+        await updateDoc(
+          doc(db, "users", state.user.uid, "linkedUsers", linkedUser.uid),
+          {
+            status: "denied",
+          }
+        );
       } catch (error) {
         console.error("Error disapproving link request:", error);
         this.$store.dispatch(
@@ -486,13 +496,9 @@ export default createStore({
         if (docSnap.exists()) {
           const userData = docSnap.data();
           const linkedUsers = userData.linkedUsers || [];
-          // Filter linked users where status is 'approved'
-          const approvedLinkedUsers = linkedUsers.filter(
-            (u) => u.status === "approved"
-          );
           // Committing the filtered list to Vuex state or returning it
-          commit("SET_LINKED_USERS", approvedLinkedUsers);
-          return approvedLinkedUsers; // Optionally return it if you need to use this array in your component
+          commit("SET_LINKED_USERS", linkedUsers);
+          return linkedUsers; // Optionally return it if you need to use this array in your component
         } else {
           commit("SET_LINKED_USERS", []);
           return []; // Return an empty array if no user data is found
@@ -553,10 +559,10 @@ export default createStore({
         );
       }
     },
-    async deleteLinkedUser({ commit }, { userId, linkedUserId }) {
+    async deleteLinkedUser({ commit }, linkedUserId) {
       try {
         // Correct Firestore path assumes linkedUsers are in a sub-collection or need proper array handling if in a field
-        const userDocRef = doc(db, "users", userId);
+        const userDocRef = doc(db, "users", auth.currentUser.uid);
         await updateDoc(userDocRef, {
           linkedUsers: arrayRemove({ uid: linkedUserId }), // Correctly removing from an array field
         });
@@ -569,20 +575,24 @@ export default createStore({
         );
       }
     },
-    async editLinkedUser({ commit }, { index, newEmail }) {
+    async editLinkedUser({ commit }, { changedUserUid, newEmail }) {
       try {
         if (auth.currentUser) {
           const userDocRef = doc(db, "users", auth.currentUser.uid);
           const userSnapshot = await getDoc(userDocRef);
           const userData = userSnapshot.exists() ? userSnapshot.data() : {};
           const linkedUsers = [...userData.linkedUsers];
-          linkedUsers[index] = newEmail;
+          linkedUsers[changedUserUid] = newEmail;
 
           await updateDoc(userDocRef, { linkedUsers });
-          commit("UPDATE_LINKED_USER", { index, newEmail });
+          commit("UPDATE_LINKED_USER", { changedUserUid, newEmail });
         }
       } catch (error) {
         console.error("Error editing linked user:", error);
+        this.$store.dispatch(
+          "showError",
+          "An error occurred: " + error.message
+        );
       }
     },
     async fetchSubmissions({ commit }) {
@@ -730,6 +740,18 @@ export default createStore({
       // Filter for incoming requests that are pending and directed to the logged-in user
       return (
         state.user.linkedUsers.filter((req) => req.status === "pending") || []
+      );
+    },
+    myApprovedLinkedUsers(state) {
+      // Filter for incoming requests that are approved to the logged-in user
+      return (
+        state.user.linkedUsers.filter((req) => req.status === "approved") || []
+      );
+    },
+    myDeniedLinkedUsers(state) {
+      // Filter for incoming requests that are approved to the logged-in user
+      return (
+        state.user.linkedUsers.filter((req) => req.status === "denied") || []
       );
     },
   },
